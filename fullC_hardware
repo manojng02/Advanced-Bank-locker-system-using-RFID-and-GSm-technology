@@ -1,0 +1,577 @@
+#include<reg51.h>
+#include<string.h>
+#include<lcd.h>
+
+void delay(unsigned int i);
+void sendser_char(unsigned char b);
+void sendser_str(unsigned char *str);
+void sms_send(void);
+void send_read(void);
+void delay_ms(unsigned int i);
+void clear(void);
+void gsm_link(void);
+void keypad();
+
+sbit re=P3^0;		//gsm receive
+sbit tr=P3^1;		//gsm transmitter
+sbit RS = P0^0;                                                                   
+sbit EN = P0^1;                            
+sbit D4 = P2^4;
+sbit D5 = P2^5;
+sbit D6 = P2^6;
+sbit D7 = P2^7;
+sbit m11=P3^4;
+sbit m12=P3^5;
+
+sbit r1=P1^0;
+sbit r2=P1^1;
+sbit r3=P1^2;
+sbit r4=P1^3;
+sbit c1=P1^4;
+sbit c2=P1^5;
+sbit c3=P1^6;
+sbit c4=P1^7;
+		
+unsigned char a[70],pwd[5],pas[5];
+unsigned int i=0,atempt=0,iJ=0,s=0,mesg_rec,ps;
+unsigned int j,trigg,testing,z,timee;
+
+void ser_int() interrupt 4
+{
+a[i]=SBUF;
+	if (a[i]!='\n')
+		{i++;}
+RI=0;
+if (iJ==1 && i>1)
+{
+mesg_rec=1;
+}
+//i++;
+}
+void main()
+
+{
+	TMOD=0x20;
+	TH1=0xFD;
+	SCON=0x50;
+	IE=0x90;
+	TR1=1;
+	
+	trigg=0;
+	m11=0;
+	m12=0;
+	
+	Lcd4_init();
+	Lcd4_Set_Cursor(1,0);
+	Lcd4_Write_String("   WELCOME TO   ");
+	Lcd4_Set_Cursor(2,0);
+	Lcd4_Write_String("   YOUR LOCKER  ");
+	
+	delay_ms(3000);
+	
+	/*Lcd4_Clear();
+	Lcd4_Set_Cursor(1,0);
+	Lcd4_Write_String(" LINKING... GSM ");
+	delay_ms(500);*/
+	
+	gsm_link(); 
+	 
+	//sms_send();
+	testing=1;
+	while(testing==1)
+{	
+	testing=0;
+	
+	Lcd4_Clear();
+	Lcd4_Set_Cursor(1,0);
+	Lcd4_Write_String("  WAITING FOR   ");
+	Lcd4_Set_Cursor(2,0);
+	Lcd4_Write_String("   RFID TAG     ");
+	clear();
+	i=0;
+	while(RI==0);	
+	/*while(i<12)
+	{
+		while(RI==0);	
+			delay(500);
+	}*/
+	
+	Lcd4_Clear();
+	Lcd4_Set_Cursor(1,0);
+	Lcd4_Write_String("  READING DONE  ");
+	
+	delay(65000);
+	a[12]='\0';
+	mesg_rec=0;
+	
+	if(0==strcmp("380033AE1FBA",a))
+	{
+		Lcd4_Clear();
+		Lcd4_Set_Cursor(1,0);
+		Lcd4_Write_String(" WELCOME USER 1");
+		Lcd4_Set_Cursor(2,0);
+		Lcd4_Write_String(a);
+		delay_ms(1500);
+		trigg=1;
+		clear();
+	}
+	else if(0==strcmp("380030993DAC",a))
+	{
+		Lcd4_Clear();
+		Lcd4_Set_Cursor(1,0);
+		Lcd4_Write_String(" WELCOME USER 2");
+		Lcd4_Set_Cursor(2,0);
+		Lcd4_Write_String(a);
+		delay_ms(1500);
+		trigg=1;
+		clear();
+	}
+	else
+	{
+		Lcd4_Clear();
+		Lcd4_Set_Cursor(1,0);
+		Lcd4_Write_String(" INVALID TAG");
+		Lcd4_Set_Cursor(2,0);
+		Lcd4_Write_String(a);
+		delay_ms(1500);
+		clear();
+	}
+
+	if (trigg==1)
+	{
+		sms_send();
+		delay_ms(1000);
+		
+		Lcd4_Clear();
+		Lcd4_Set_Cursor(1,0);
+		Lcd4_Write_String("  RECIEVING     ");
+		Lcd4_Set_Cursor(2,0);
+		Lcd4_Write_String("    PASSWORD    ");
+		clear();
+		i=0;
+		iJ=1;
+		while(RI==0);
+		
+		 i=0;		
+		Lcd4_Clear();
+		/*Lcd4_Set_Cursor(1,0);
+		while(a[i]!='\0')
+		{
+			if (i<=16){
+			Lcd4_Set_Cursor(2,i-16);
+			}
+			Lcd4_Write_Char(a[i]);
+			delay_ms(200);
+			i++;
+		} */
+		delay_ms( 1500);
+		Lcd4_Clear();
+		
+		clear();
+		if(mesg_rec==1)
+	{
+		Lcd4_Clear();
+		Lcd4_Set_Cursor(1,0);
+		Lcd4_Write_String("   PASSWORD   ");
+		Lcd4_Set_Cursor(2,0);
+		Lcd4_Write_String("   RECIEVED   ");
+		delay_ms(500);
+		send_read();
+		i=0;
+		while(RI==0);
+		delay_ms(500);
+		/*iJ=i;
+		i=1;
+		Lcd4_Clear();
+		Lcd4_Set_Cursor(1,0);
+		while(i<70){
+				if (i!=0 && i%16==0){
+					Lcd4_Clear();
+					Lcd4_Set_Cursor(1,0);
+				}
+				Lcd4_Set_Cursor(1,i%16);
+				Lcd4_Write_Char(a[i]);
+				Lcd4_Set_Cursor(2,0);
+				Lcd4_Write_Char(i+'0');
+				delay_ms(300);
+				i++;
+		}*/
+		if(a[1]=='+'&&a[2]=='C'&&a[3]=='M')  
+		{																		//+CMGR: "REC UNREAD","+916363557823","","22/06/15,17:24:39+22"
+																				//1234  OK
+			j=0;
+			while(j<strlen(a)){
+			if (a[j]=='O' && a[j+1]=='K'){
+			i=j;
+			break;
+			}
+			j++;
+			}
+			for (j=0;j<4;j++)
+		{
+			
+			pas[j]=a[i-6];
+			i++;
+		}
+		pas[4]='\0';
+		}
+		
+		/* Lcd4_Clear();
+		Lcd4_Set_Cursor(1,0);
+		Lcd4_Write_String(pas);
+		delay_ms(200);*/
+	}
+	 Lcd4_Clear();
+		Lcd4_Set_Cursor(1,0);
+		Lcd4_Write_String("  READING DONE  ");
+		delay_ms(300);
+	
+	while (atempt<3){
+		Lcd4_Clear();
+		Lcd4_Set_Cursor(1,0);
+		Lcd4_Write_String(" ENTER PASSWORD   ");
+		
+	for(ps=0;ps<5;ps++)
+	{
+	pwd[ps]='\0';
+
+	}
+	ps=0;
+	Lcd4_Set_Cursor(2,0);
+	while(ps<4)
+	{
+	keypad();
+	
+	}
+	if(0==strcmp(pwd,pas))
+		{
+		
+		delay(65000);
+		Lcd4_Clear();
+		Lcd4_Set_Cursor(1,0);
+		Lcd4_Write_String("ENTERED PASSWORD");
+		Lcd4_Set_Cursor(2,0);
+		Lcd4_Write_String("   IS CORRECT   ");
+		delay_ms(2000);
+		Lcd4_Clear();
+		Lcd4_Set_Cursor(1,0);
+		Lcd4_Write_String("   LOCKER IS    ");
+		Lcd4_Set_Cursor(2,0);
+		Lcd4_Write_String("    OPENING     ");
+		m11=1;
+		m12=0;
+		delay_ms(3000);
+		Lcd4_Clear();
+		Lcd4_Set_Cursor(1,0);
+		Lcd4_Write_String(" LOCKER OPENED  ");
+		s=1;
+		m11=0;
+		m12=0;
+		sms_send();
+		
+		Lcd4_Clear();
+		Lcd4_Set_Cursor(1,0);
+		Lcd4_Write_String(" LOCKER  CLOSING ");
+		m11=0;
+		m12=1;
+		delay_ms(3000);			
+		Lcd4_Clear();
+		Lcd4_Set_Cursor(1,0);
+		Lcd4_Write_String(" LOCKER CLOSED  ");
+		m11=0;
+		m12=0;
+		delay_ms(3000);
+		break;
+		}
+		else
+		{
+				
+		Lcd4_Clear();
+		Lcd4_Set_Cursor(1,0);
+		Lcd4_Write_String("ENTERED PASSWORD");
+		Lcd4_Set_Cursor(2,0);
+		Lcd4_Write_String(" IS INCORRECT   ");
+		delay_ms(2000);
+		Lcd4_Clear();
+		Lcd4_Write_String(pwd);
+		delay_ms(500);
+		atempt+=1;
+		}
+		if (atempt==3){
+		Lcd4_Clear();
+		Lcd4_Set_Cursor(1,0);
+		Lcd4_Write_String("MULTIPLE INVALID");
+		Lcd4_Set_Cursor(2,0);
+		Lcd4_Write_String(" LOGIN ATTEMPT  ");
+		delay_ms(3000);
+		sms_send();
+			
+	}
+}
+	
+	}
+}
+}
+void keypad(void)
+{
+
+		delay_ms(300);
+		c1=c2=c3=1;
+		r1=r2=r3=r4=0;
+		if(c1==0)//c1 is pressed 
+		{
+			r1=r2=r3=r4=1;
+			c1=c2=c3=c4=0;
+		  if(r1==0)//r1 is pressed 
+			{
+			Lcd4_Write_Char(1+'0');pwd[ps]='1';ps++;
+			}
+			if(r2==0)//r2 is pressed 
+			{
+			Lcd4_Write_Char(4+'0');pwd[ps]='4';ps++;
+			}
+		  if(r3==0)//r1 is pressed 
+			{
+			Lcd4_Write_Char(7+'0');pwd[ps]='7';ps++; 
+				}
+			if(r4==0)//r2 is pressed 
+			{
+			Lcd4_Write_Char('*');pwd[ps]='*';ps++; 
+			}
+		}
+				else if(c2==0)//c1 is pressed 
+		{
+			r1=r2=r3=r4=1;
+			c1=c2=c3=c4=0;
+		  if(r1==0)//r1 is pressed 
+			{
+			Lcd4_Write_Char(2+'0');pwd[ps]='2';ps++; 
+			}
+			if(r2==0)//r2 is pressed 
+			{
+			Lcd4_Write_Char(5+'0');pwd[ps]='5';ps++; 
+			}
+		  if(r3==0)//r1 is pressed 
+			{
+			Lcd4_Write_Char(8+'0');pwd[ps]='8';ps++; 
+			}
+			if(r4==0)//r2 is pressed 
+			{
+			Lcd4_Write_Char(0+'0');pwd[ps]='0';ps++;
+			}				
+		}
+		
+				else if(c3==0)//c1 is pressed 
+		{
+			r1=r2=r3=r4=1;
+			c1=c2=c3=c4=0;
+		  if(r1==0)//r1 is pressed 
+			{
+			Lcd4_Write_Char(3+'0');pwd[ps]='3';ps++;
+			}				
+			if(r2==0)//r2 is pressed 
+			{
+			Lcd4_Write_Char(6+'0');pwd[ps]='6';ps++; 
+			}
+		  if(r3==0)//r1 is pressed 
+			{
+			Lcd4_Write_Char(9+'0');pwd[ps]='9';ps++;
+			}
+			if(r4==0)//r2 is pressed 
+			{
+			Lcd4_Write_Char('#');pwd[ps]='#';ps++; 
+			}
+		}
+		
+		else if(c4==0)//c1 is pressed 
+		{
+			r1=r2=r3=r4=1;
+			c1=c2=c3=c4=0;
+		  if(r1==0)//r1 is pressed 
+			{
+			Lcd4_Write_Char('A');pwd[ps]='A';ps++;
+			}				
+			if(r2==0)//r2 is pressed 
+			{
+			Lcd4_Write_Char('B');pwd[ps]='B';ps++; 
+			}
+		  if(r3==0)//r1 is pressed 
+			{
+			Lcd4_Write_Char('C');pwd[ps]='C';ps++;
+			}
+			if(r4==0)//r2 is pressed 
+			{
+			Lcd4_Write_Char('D');pwd[ps]='D';ps++; 
+			}
+		}
+
+}
+void sms_send(void)
+{
+	Lcd4_Clear();
+	Lcd4_Set_Cursor(1,0);
+	Lcd4_Write_String("   SENDING SMS  ");
+	delay_ms(200);
+	
+	sendser_str("AT+CSMP=17,167,0,0");
+	sendser_char(0x0D);
+	delay_ms(1000);
+	
+	sendser_str("AT+CMGS=");
+	sendser_char(0x22);
+	sendser_str("+919380193065");
+	sendser_char(0x22);
+	sendser_char(0x0d);
+	delay_ms(1000);
+	if(s==1)
+	{
+	sendser_str("BANK LOCKER OPENED SUCCESSFULLY");
+	}
+	else{ sendser_str("PLEASE CREATE PASSWORD");}
+	if (atempt==3){
+	sendser_str("YOUR LOCKER HAD MULTIPLE ACCESS ATEMPTS");
+	}
+	sendser_char(0x1A);
+	delay_ms(4000);
+	clear();
+}
+void send_read(void){
+Lcd4_Clear();
+		Lcd4_Set_Cursor(1,0);
+		Lcd4_Write_String("READING MESSAGE ");
+	delay_ms(300);
+	sendser_str("AT+CMGR=1");
+	sendser_char(0x0D);
+	delay_ms(1000);
+	sendser_str("AT+CMGR=1");
+	sendser_char(0x0D);
+	delay_ms(500);
+}
+void gsm_link(void)
+{
+	sendser_str("ATE0");
+	sendser_char(0x0D);
+	delay_ms(1000);
+	
+	sendser_str("AT+IPR=9600");
+	sendser_char(0x0D);
+	delay_ms(1000);
+	
+	z=0;
+		
+	while (z==0){
+		i=0;
+	 
+	/*Lcd4_Clear();
+	Lcd4_Set_Cursor(1,0);
+	Lcd4_Write_String(" SENDING... AT  ");	*/
+	sendser_str("AT");
+	sendser_char(0x0D); 
+	delay_ms(1000);
+	/*	
+ 	Lcd4_Clear();
+	Lcd4_Set_Cursor(1,0);
+	Lcd4_Write_String(a); */
+	delay_ms(200);
+		
+	if(a[1]=='O'&& a[2]=='K')
+	{
+		Lcd4_Clear();
+		Lcd4_Set_Cursor(1,0);
+		Lcd4_Write_String(" GSM LINK IS UP ");
+		delay_ms(500);
+		z=1;
+	}
+	else
+	{
+		Lcd4_Clear();
+		Lcd4_Set_Cursor(1,0);
+		Lcd4_Write_String("  GSM CHECKING  ");
+		delay_ms(500);
+		
+	}
+	clear();
+	delay_ms(200);
+}
+	z=0;
+	clear();
+	while(z==0)
+	{
+	i=0;
+	Lcd4_Clear();
+	sendser_str("AT+CMGF=1");
+	sendser_char(0x0D);
+	delay_ms(1000);
+	/*Lcd4_Clear();
+		Lcd4_Set_Cursor(1,0);
+		while(a[i]!='\0')
+			{
+	
+	Lcd4_Write_Char(a[i]);
+				Lcd4_Set_Cursor(2,0);
+				Lcd4_Write_Char(a[i]+'0');
+	delay_ms(300);
+	i++;}*/
+		
+	 /*Lcd4_Clear();
+	Lcd4_Set_Cursor(1,0);
+	Lcd4_Write_String(a);  */
+	delay_ms(300);
+	Lcd4_Clear();
+	if(a[1]=='O'&&a[2]=='K')
+	{
+		Lcd4_Write_String("  GSM TEXT MODE ");
+		delay_ms(200);
+		z=1;
+	
+	}
+	else
+	{
+		Lcd4_Write_String("GSM NOT IN TEXT ");
+		delay_ms(200);
+	}
+	clear();
+	delay_ms(200);
+}
+	sendser_str("AT+CMGD=1,4");
+	sendser_char(0x0D);
+	delay_ms(1000);
+clear();
+	/*Lcd4_Clear();
+	Lcd4_Set_Cursor(1,0);
+	Lcd4_Write_String(a);
+	delay_ms(1000);*/
+}
+void delay(unsigned int i)
+{
+unsigned int j;
+	for(j=0;j<i;j++);
+}
+void delay_ms(unsigned int timee)
+{
+unsigned int j,k;
+	for(j=0;j<timee;j++)
+	for(k=0;k<120;k++);
+}
+void sendser_char(unsigned char b)
+{
+	SBUF=b;
+	while(TI==0);
+	TI=0;
+}
+void sendser_str(unsigned char *str)
+{
+while(*str)
+{
+	sendser_char(*str++);
+}
+}
+void clear(void)
+{
+unsigned int i;
+	for(i=0;i<60;i++)
+	{
+	a[i]=0;
+	
+	}
+}
